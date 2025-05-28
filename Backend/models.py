@@ -17,3 +17,8 @@ class TimeLog(Model):
     employee = fields.ForeignKeyField("models.Employee", related_name="logs")
     timestamp = fields.DatetimeField(auto_now_add=True)
     action = fields.CharField(max_length=10, choices=["IN", "OUT"]) 
+
+class Environment(Model):
+    id = fields.IntField(pk=True)
+    key = fields.CharField(max_length=50, unique=True)
+    value = fields.CharField(max_length=100)

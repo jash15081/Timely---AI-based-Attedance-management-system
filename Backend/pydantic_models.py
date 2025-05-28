@@ -8,3 +8,7 @@ class AdminIn(BaseModel):
 class EmployeeIn(BaseModel):
     name: str
     email: str
+
+class ConfigIn(BaseModel):
+    camera_enter: str
+    camera_exit: str

@@ -2,9 +2,9 @@ from fastapi import FastAPI,Depends, HTTPException,Response,Request,UploadFile, 
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from tortoise.contrib.fastapi import register_tortoise
-from models import Admin, TimeLog, Employee
+from models import Admin, TimeLog, Employee,Environment
 from pydantic import BaseModel
-from pydantic_models import AdminIn, EmployeeIn
+from pydantic_models import AdminIn, EmployeeIn,ConfigIn
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import dotenv
 import os
@@ -12,8 +12,12 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from routes.employee_routes import router as employee_router
-from utils import authenticate_user
+from utils import authenticate_user, generate_frames
 from fastapi.middleware.cors import CORSMiddleware
+from utils import is_valid_rtsp_url,is_rtsp_stream_accessible
+import urllib.parse
+from fastapi.responses import StreamingResponse
+
 import time
 dotenv.load_dotenv()
 CORS_ORIGIN = os.getenv("CORS_ORIGIN")
@@ -103,4 +107,62 @@ async def get_me(username = Depends(authenticate_user)):
             raise HTTPException(status_code=404, detail="Admin not found")
         return {"username": admin.username, "role": "admin"}
 
+import re
 
+@app.get("/configure")
+async def get_config(username = Depends(authenticate_user)):
+    if username != "superuser":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    envs_enter = await Environment.get_or_none(key="CAMERA_ENTER")
+    envs_exit = await Environment.get_or_none(key="CAMERA_EXIT")
+    if not envs_enter or not envs_exit:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    return {"camera_enter": envs_enter.value, "camera_exit": envs_exit.value}
+
+
+@app.post("/configure")
+async def set_config(cfg:ConfigIn, username = Depends(authenticate_user)):
+    if username != "superuser":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if(not cfg.camera_enter or not cfg.camera_exit or not is_valid_rtsp_url(cfg.camera_enter) or not is_valid_rtsp_url(cfg.camera_exit)):
+        raise HTTPException(status_code=400, detail="Invalid configuration values")
+    
+    if(is_rtsp_stream_accessible(cfg.camera_enter) == False):
+        raise HTTPException(status_code=400, detail="Camera enter stream is not accessible")
+    if(is_rtsp_stream_accessible(cfg.camera_exit) == False):
+        raise HTTPException(status_code=400, detail="Camera exit stream is not accessible")
+    envs = await Environment.get_or_none(key="CAMERA_ENTER")
+    if envs:
+        envs.value = cfg.camera_enter
+        await envs.save()
+    else:
+        await Environment.create(key="CAMERA_ENTER", value=cfg.camera_enter)
+    envs = await Environment.get_or_none(key="CAMERA_EXIT")
+    if envs:
+        envs.value = cfg.camera_exit
+        await envs.save()
+    else:
+        await Environment.create(key="CAMERA_EXIT", value=cfg.camera_exit)
+    return {"message": "Configuration updated successfully"}
+
+@app.get("/stream")
+async def stream_camera(request: Request):
+    rtsp_url = request.query_params.get("url")
+    print(f"Received RTSP URL: {rtsp_url}")
+    if not rtsp_url:
+        raise HTTPException(status_code=400, detail="Missing RTSP URL")
+
+    decoded_url = urllib.parse.unquote(rtsp_url)
+
+    # Validate the URL
+    if not decoded_url.startswith("rtsp://"):
+        raise HTTPException(status_code=400, detail="Invalid RTSP URL")
+
+    # Use try-except to catch any OpenCV errors
+    try:
+        return StreamingResponse(
+            generate_frames(decoded_url),
+            media_type="multipart/x-mixed-replace; boundary=frame"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

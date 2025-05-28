@@ -40,7 +40,7 @@ function App() {
       :
       <Router>
         <Routes>
-          <Route path="/" element={user?<HomePage/>:<LoginPage/>} />
+          <Route path="/*" element={user?<HomePage/>:<LoginPage/>} />
         </Routes>
       </Router>
       }
