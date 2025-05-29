@@ -99,7 +99,7 @@ function AddEmployee() {
         <button
           type='submit'
           disabled={creating}
-          className='bg-emerald-800 text-white px-6 py-2 rounded-md hover:bg-green-700'
+          className='bg-emerald-800 text-white px-6 py-2 rounded-md hover:bg-emerald-700'
         >
           {creating ? 'Saving...' : 'Create Employee'}
         </button>
