@@ -77,6 +77,8 @@ const configureSlice = createSlice({
       .addCase(fetchConfiguration.pending, (state) => {
         state.loading = true;
         state.fetching = true;
+        state.entranceUrl = '';
+        state.exitUrl = '';
         state.message = '';
       })
       .addCase(fetchConfiguration.fulfilled, (state, action) => {

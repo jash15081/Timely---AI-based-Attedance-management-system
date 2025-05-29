@@ -1,9 +1,13 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../features/auth/authSlice';
-import { Routes, Route, NavLink, Outlet } from 'react-router-dom';
+import { Routes, Route, NavLink } from 'react-router-dom';
 import Home from '../components/Home';
 import Configure from '../components/Configure';
+import Admins from '../components/Admins';
+import Employees from '../components/Employees';
+import AddEmployee from '../components/AddEmployee';
+import EditEmployee from '../components/EditEmployee';
 
 function HomePage() {
   const dispatch = useDispatch();
@@ -11,59 +15,94 @@ function HomePage() {
 
   return (
     <div className='flex min-h-[91vh] bg-gray-100'>
-      {/* Sidebar Navigation */}
-      <aside className='w-64 bg-green-700 text-white flex flex-col justify-between'>
-        <div>
-          <div className='p-6 text-2xl font-bold border-b border-green-600'>
-            Timely Admin
-          </div>
-          <nav className='flex flex-col space-y-2 p-4'>
-            <NavLink
-              to='/'
-              end
-              className={({ isActive }) =>
-                `px-4 py-2 rounded hover:bg-green-600 transition ${
-                  isActive ? 'bg-green-600' : ''
-                }`
-              }
-            >
-              Home
-            </NavLink>
-            {isSuperuser && (
+      {/* Sidebar */}
+      <div class='w-64 relative'>
+        <aside className='w-64 bg-emerald-800 text-white flex flex-col justify-between shadow-xl rounded-2xl h-[93vh] fixed'>
+          <div>
+            <div className='p-6 text-2xl font-bold bg-emerald-900 border-b border-emerald-700 rounded-2xl'>
+              Timely Admin
+            </div>
+            <nav className='flex flex-col p-4 space-y-2'>
               <NavLink
-                to='/configure'
+                to='/'
+                end
                 className={({ isActive }) =>
-                  `px-4 py-2 rounded hover:bg-green-600 transition ${
-                    isActive ? 'bg-green-600' : ''
+                  `px-4 flex items-start py-2 rounded-lg font-medium transition duration-200 ${
+                    isActive
+                      ? 'bg-white text-emerald-800 shadow'
+                      : 'hover:bg-emerald-700 hover:text-white text-emerald-100'
                   }`
                 }
               >
-                Configure
+                🏠 Home
               </NavLink>
+              <NavLink
+                to='/employees'
+                className={({ isActive }) =>
+                  `px-4 py-2 flex items-start flex items-start rounded-lg font-medium transition duration-200 ${
+                    isActive
+                      ? 'bg-white text-emerald-800 shadow'
+                      : 'hover:bg-emerald-700 hover:text-white text-emerald-100'
+                  }`
+                }
+              >
+                👥 Employees
+              </NavLink>
+              {isSuperuser && (
+                <NavLink
+                  to='/configure'
+                  className={({ isActive }) =>
+                    `px-4 py-2 flex items-start rounded-lg font-medium transition duration-200 ${
+                      isActive
+                        ? 'bg-white text-emerald-800 shadow'
+                        : 'hover:bg-emerald-700 hover:text-white text-emerald-100'
+                    }`
+                  }
+                >
+                  ⚙️ Configure
+                </NavLink>
+              )}
+              {isSuperuser && (
+                <NavLink
+                  to='/admins'
+                  className={({ isActive }) =>
+                    `px-4 py-2 flex items-start rounded-lg font-medium transition duration-200 ${
+                      isActive
+                        ? 'bg-white text-emerald-800 shadow'
+                        : 'hover:bg-emerald-700 hover:text-white text-emerald-100'
+                    }`
+                  }
+                >
+                  🛡️ Admins
+                </NavLink>
+              )}
+            </nav>
+          </div>
+
+          <div className='p-4 border-t border-emerald-700'>
+            <button
+              onClick={() => dispatch(logoutUser())}
+              className='w-full px-4 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-lg transition duration-200'
+            >
+              Logout
+            </button>
+            {isSuperuser && (
+              <p className='text-xs text-emerald-200 mt-2'>
+                Superuser Access Enabled
+              </p>
             )}
-          </nav>
-        </div>
-
-        <div className='p-4 border-t border-green-600'>
-          <button
-            onClick={() => dispatch(logoutUser())}
-            className='w-full px-4 py-2 bg-red-500 hover:bg-red-600 rounded transition text-white'
-          >
-            Logout
-          </button>
-          {isSuperuser && (
-            <p className='text-sm text-green-200 mt-2'>
-              You have superuser privileges!
-            </p>
-          )}
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <main className='flex-1 p-8 overflow-auto'>
+          </div>
+        </aside>
+      </div>
+      {/* Main Content */}
+      <main className='flex-1 p-6 overflow-auto w-full'>
         <Routes>
           <Route path='/' element={<Home />} />
           <Route path='/configure' element={<Configure />} />
+          <Route path='/admins' element={<Admins />} />
+          <Route path='/employees' element={<Employees />} />
+          <Route path='/add-employee' element={<AddEmployee />} />
+          <Route path='/edit-employee/:id' element={<EditEmployee />} />
         </Routes>
       </main>
     </div>

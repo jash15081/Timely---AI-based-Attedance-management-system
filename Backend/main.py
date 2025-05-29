@@ -1,4 +1,5 @@
 from fastapi import FastAPI,Depends, HTTPException,Response,Request,UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from tortoise.contrib.fastapi import register_tortoise
@@ -17,8 +18,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from utils import is_valid_rtsp_url,is_rtsp_stream_accessible
 import urllib.parse
 from fastapi.responses import StreamingResponse
-
 import time
+from tortoise import Tortoise
+
 dotenv.load_dotenv()
 CORS_ORIGIN = os.getenv("CORS_ORIGIN")
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -31,6 +33,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 app  = FastAPI()
 
+photos_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'photos'))
+print(f"Photos directory: {photos_path}")
+app.mount("/static/photos", StaticFiles(directory=photos_path), name="photos")
 
 register_tortoise(
     app,
@@ -56,14 +61,38 @@ def create_token(data: dict):
     to_encode["exp"] = datetime.now(timezone.utc) + timedelta(int(EXPIRE_TIME))
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+@app.get("/admin")
+async def get_admins(username = Depends(authenticate_user)):
+    if username != "superuser":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    admins = await Admin.all().values("id", "username")
+    return JSONResponse(content=admins)
+
 @app.post("/admin")
 async def create_admins(admin: AdminIn,username = Depends(authenticate_user)):
     if(username != "superuser"):
         raise HTTPException(status_code=403, detail="Forbidden")
+    if not admin.username or not admin.password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+    existing_admin = await Admin.get_or_none(username=admin.username)
+    if existing_admin:
+        raise HTTPException(status_code=400, detail="Admin with this username already exists")
     admin.password = pwd_context.hash(admin.password)
     admin_obj = await Admin.create(**admin.model_dump())
-    return {"created"}    
+    return {admin_obj}    
 
+
+
+@app.delete("/admin/{admin_id}")
+async def delete_admin(admin_id: int,username = Depends(authenticate_user)):
+    if(username != "superuser"):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    admin = await Admin.get_or_none(id=admin_id)
+    if not admin:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    await admin.delete()
+    return {"message": "Admin deleted successfully"}
 
 @app.post("/login")
 async def login(response:Response,form_data: OAuth2PasswordRequestForm = Depends()):
@@ -80,16 +109,6 @@ async def login(response:Response,form_data: OAuth2PasswordRequestForm = Depends
         max_age=3600  
     )
     return {"username": admin.username}
-
-@app.delete("/admin/{admin_id}")
-async def delete_admin(admin_id: int,username = Depends(authenticate_user)):
-    if(username != "superuser"):
-        raise HTTPException(status_code=403, detail="Forbidden")
-    admin = await Admin.get_or_none(id=admin_id)
-    if not admin:
-        raise HTTPException(status_code=404, detail="Admin not found")
-    await admin.delete()
-    return {"message": "Admin deleted successfully"}
 
 @app.post("/logout")
 async def logout(response: Response):
@@ -166,3 +185,4 @@ async def stream_camera(request: Request):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    

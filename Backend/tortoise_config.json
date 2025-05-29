@@ -1,6 +1,6 @@
 {
   "connections": {
-    "default": "mysql://root:Jash_1508@localhost:3306/timely"
+    "default": "mysql://root:Jash_1508@localhost:3306/timely2"
   },
   "apps": {
     "models": {

@@ -11,7 +11,7 @@ ALGORITHM = os.getenv("ALGORITHM")
 
 
 def authenticate_user(request:Request):
-    time.sleep(1)
+    time.sleep(0.5)  # Simulate some processing delay
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorised")
