@@ -39,9 +39,7 @@ function Employees() {
         </p>
       )}
 
-      {!isLoading && employees?.length === 0 && (
-        <p className='text-center text-gray-500 text-sm'>No employees found.</p>
-      )}
+      
 
       <ul className='divide-y divide-gray-200'>
         {employees?.map((employee) => (

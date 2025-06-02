@@ -1,6 +1,6 @@
 {
   "connections": {
-    "default": "mysql://root:Jash_1508@localhost:3306/timely2"
+    "default": "mysql://sadna:Sadna%401234@localhost:3306/timely"
   },
   "apps": {
     "models": {

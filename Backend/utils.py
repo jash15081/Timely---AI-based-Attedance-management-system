@@ -54,3 +54,4 @@ def generate_frames(rtsp_url: str):
         )
     cap.release()
 
+

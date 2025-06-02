@@ -20,7 +20,7 @@ import urllib.parse
 from fastapi.responses import StreamingResponse
 import time
 from tortoise import Tortoise
-
+from routes.model_routes import router as model_router
 dotenv.load_dotenv()
 CORS_ORIGIN = os.getenv("CORS_ORIGIN")
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -51,7 +51,7 @@ app.add_middleware(
     allow_headers=["*"],  # allow all headers
 )
 app.include_router(employee_router)
-
+app.include_router(model_router)
 
 def verify_password(plain_password, hashed):
     return pwd_context.verify(plain_password, hashed)
@@ -89,6 +89,8 @@ async def delete_admin(admin_id: int,username = Depends(authenticate_user)):
     if(username != "superuser"):
         raise HTTPException(status_code=403, detail="Forbidden")
     admin = await Admin.get_or_none(id=admin_id)
+    if admin.username == "superuser":
+        raise HTTPException(status_code=403,detail="Can't Delete the Superuser")
     if not admin:
         raise HTTPException(status_code=404, detail="Admin not found")
     await admin.delete()

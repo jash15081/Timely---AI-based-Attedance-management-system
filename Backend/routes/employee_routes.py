@@ -7,7 +7,7 @@ import shutil
 import dotenv
 import os
 from uuid import uuid4
-
+from fastapi.responses import JSONResponse
 dotenv.load_dotenv()
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER")
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/jpg", "image/webp"}
@@ -209,7 +209,7 @@ async def delete_photo(id: str,file: str = Form(...),username = Depends(authenti
         if os.path.isfile(os.path.join(emp_dir, f))
            and f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
     ]
-    if len(image_files) <= 1:
+    if len(image_files) <= 1:   
         raise HTTPException(
             status_code=400,
             detail="At least one photo must remain."
@@ -217,10 +217,27 @@ async def delete_photo(id: str,file: str = Form(...),username = Depends(authenti
     os.remove(file_path)
     return {"message": "Photo deleted successfully"}
 
+
+
 @router.post("/enter")
-async def enter(username = Depends(authenticate_user)):
-    return {"employee entered"}
+async def enter(request: Request):
+    data = await request.json()
+    empid = data.get("empid")
+
+    if not empid:
+        return JSONResponse(status_code=400, content={"error": "empid is required"})
+
+    print(f"{empid} Entered!")
+    return {"status": "success", "message": f"Employee {empid} entered"}
 
 @router.post("/exit")
-async def exit(username = Depends(authenticate_user)):
-    return {"employee exited"}
+async def exit(request: Request):
+    data = await request.json()
+    empid = data.get("empid")
+
+    if not empid:
+        return JSONResponse(status_code=400, content={"error": "empid is required"})
+
+    print(f"{empid} Exited!")
+    return {"status": "success", "message": f"Employee {empid} exited"}
+

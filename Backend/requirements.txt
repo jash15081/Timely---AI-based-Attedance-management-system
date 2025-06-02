@@ -2,3 +2,5 @@ fastapi
 tortoise-orm
 uvicorn
 aiomysql
+passlib
+python-jose
