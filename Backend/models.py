@@ -16,7 +16,7 @@ class Employee(Model):
 class TimeLog(Model):
     id = fields.IntField(pk=True)
     employee = fields.ForeignKeyField("models.Employee", related_name="logs")
-    timestamp = fields.DatetimeField(auto_now_add=True)
+    timestamp = fields.DatetimeField(auto_now_add=False)
     action = fields.CharField(max_length=10, choices=["IN", "OUT"]) 
 
 class Environment(Model):

@@ -22,11 +22,12 @@ router = APIRouter(
 from fastapi import Depends
 import subprocess
 import os
+import asyncio
 
 @router.post("/start")
 async def start_model(username=Depends(authenticate_user)):
     global enter_proc, exit_proc
-
+    print("start")
     try:
         venv_python = os.path.abspath(ENV_PATH)
         model_script = os.path.abspath(MODEL_PATH)
@@ -40,21 +41,59 @@ async def start_model(username=Depends(authenticate_user)):
         if not enter_url or not exit_url:
             return {"error": "CAMERA_ENTER or CAMERA_EXIT URL not found."}
 
-        # Start both models (non-blocking)
+        # Start both models (capture stdout)
         enter_proc = subprocess.Popen(
             [venv_python, model_script, 'enter', enter_url],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.STDOUT,
+            text=True
         )
 
         exit_proc = subprocess.Popen(
             [venv_python, model_script, 'exit', exit_url],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.STDOUT,
+            text=True
         )
 
-        return {"status": "success", "message": "Both models started."}
+        # Async wait for "streaming - " line from both
+        async def wait_for_start(proc, label):
+            while True:
+                line = await asyncio.to_thread(proc.stdout.readline)
+                if not line:
+                    break
+                print(f"[{label}] {line.strip()}")
+                if "streaming -" in line:
+                    break;
 
+        await asyncio.gather(
+            wait_for_start(enter_proc, "enter"),
+            wait_for_start(exit_proc, "exit")
+        )
+        print("done")
+        return {"status": "success", "message": "Both models started and streaming."}
+
+    except Exception as e:
+        return {"status": "error", "details": str(e)}
+
+    
+@router.get("/status")
+async def check_model_status(username=Depends(authenticate_user)):
+    global enter_proc, exit_proc
+
+    try:
+        enter_running = enter_proc and enter_proc.poll() is None
+        exit_running = exit_proc and exit_proc.poll() is None
+
+        if enter_running and exit_running:
+            return {"status": "running"}
+        elif not enter_running and not exit_running:
+            return {"status": "stopped"}
+        else:
+            return {"status": "partial", "details": {
+                "enter": "running" if enter_running else "stopped",
+                "exit": "running" if exit_running else "stopped"
+            }}
     except Exception as e:
         return {"status": "error", "details": str(e)}
 
@@ -83,36 +122,44 @@ async def stop_model(username=Depends(authenticate_user)):
 
     except Exception as e:
         return {"status": "error", "details": str(e)}
-
+    
 
 @router.post("/generate-embeddings")
-async def generate_embeddings(username =Depends(authenticate_user)):
-    
+async def generate_embeddings(username=Depends(authenticate_user)):
     try:
         directory = os.path.abspath(PHOTOS_PATH)
         venv_python = os.path.abspath(ENV_PATH)
         model_script = os.path.abspath(EMBD_PATH)
-        result = subprocess.run(
-            [venv_python, model_script,directory],
-            capture_output=True,
-            text=True,
-            check=True  # Raises CalledProcessError on non-zero exit
+
+        process = subprocess.Popen(
+            [venv_python, model_script, directory],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
         )
-        
-        # You can also parse or log result.stdout if needed
+
+        logs = []
+        while True:
+            line = process.stdout.readline()
+            if line == "" and process.poll() is not None:
+                break
+            if line:
+                logs.append(line.strip())
+
+        stderr_output = process.stderr.read()
+        if process.returncode != 0:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Embedding generation failed:\n{stderr_output.strip()}"
+            )
+
         return {
             "status": "success",
             "message": f"Embedding generation completed successfully by user {username}.",
-            "output": result.stdout.strip()
+            "logs": logs
         }
-    except subprocess.CalledProcessError as e:
-        # This means the script failed
-        raise HTTPException(
-            status_code=500,
-            detail=f"Embedding generation failed: {e.stderr.strip() if e.stderr else str(e)}"
-        )
+
     except Exception as e:
-        # Generic fallback error
         raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred: {str(e)}"

@@ -57,7 +57,7 @@ function Employees() {
                 <p className='text-lg font-medium text-gray-800'>
                   {employee.name}
                 </p>
-                <span className='text-sm text-gray-500'>
+                <span className='text-sm text-start text-gray-500'>
                   ID: {employee.empid}
                 </span>
               </div>
@@ -65,7 +65,7 @@ function Employees() {
             <div className='flex items-center space-x-3'>
               <button
                 className='px-4 py-1.5 text-sm font-semibold text-emerald-700 border border-emerald-500 rounded-lg hover:bg-green-100 transition duration-200'
-                onClick={() => console.log('View details of', employee.empid)}
+                onClick={() => navigate(`/employee-details/${employee.empid}`)}
               >
                 Details
               </button>

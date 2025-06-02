@@ -1,6 +1,6 @@
 # routers/employee.py
-from fastapi import APIRouter, Depends, HTTPException,UploadFile,File,Form,Request
-from models import Employee 
+from fastapi import APIRouter, Depends, HTTPException,UploadFile,File,Form,Request,Query
+from models import Employee,TimeLog 
 from pydantic_models import EmployeeIn
 from utils import authenticate_user
 import shutil
@@ -8,6 +8,9 @@ import dotenv
 import os
 from uuid import uuid4
 from fastapi.responses import JSONResponse
+from tortoise.exceptions import DoesNotExist
+from datetime import datetime, timedelta, date
+from tortoise.expressions import Q
 dotenv.load_dotenv()
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER")
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/jpg", "image/webp"}
@@ -16,7 +19,10 @@ router = APIRouter(
     prefix="/employee",
     tags=["Employees"]
 )
-
+def format_duration(seconds: int):
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    return f"{hours}h {minutes}m"
 PHOTOS_BASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..','..', 'photos'))
 print(f"Photos base path: {PHOTOS_BASE_PATH}")
 
@@ -217,8 +223,11 @@ async def delete_photo(id: str,file: str = Form(...),username = Depends(authenti
     os.remove(file_path)
     return {"message": "Photo deleted successfully"}
 
+import pytz
 
 
+LOCAL_TIMEZONE = pytz.timezone("Asia/Kolkata")
+print(datetime.now(LOCAL_TIMEZONE))
 @router.post("/enter")
 async def enter(request: Request):
     data = await request.json()
@@ -227,7 +236,17 @@ async def enter(request: Request):
     if not empid:
         return JSONResponse(status_code=400, content={"error": "empid is required"})
 
-    print(f"{empid} Entered!")
+    try:
+        employee = await Employee.get(empid=empid)
+    except DoesNotExist:
+        return JSONResponse(status_code=404, content={"error": "Employee not found"})
+
+    # get current time in local timezone
+    current_time = datetime.now(LOCAL_TIMEZONE)
+    print(current_time)
+    await TimeLog.create(employee=employee, action="IN", timestamp=current_time)
+
+    print(f"{empid} Entered at {current_time}!", flush=True)
     return {"status": "success", "message": f"Employee {empid} entered"}
 
 @router.post("/exit")
@@ -238,6 +257,137 @@ async def exit(request: Request):
     if not empid:
         return JSONResponse(status_code=400, content={"error": "empid is required"})
 
-    print(f"{empid} Exited!")
+    try:
+        employee = await Employee.get(empid=empid)
+    except DoesNotExist:
+        return JSONResponse(status_code=404, content={"error": "Employee not found"})
+
+    # get current time in local timezone
+    current_time = datetime.now(LOCAL_TIMEZONE)
+
+    await TimeLog.create(employee=employee, action="OUT", timestamp=current_time)
+
+    print(f"{empid} Exited at {current_time}!", flush=True)
     return {"status": "success", "message": f"Employee {empid} exited"}
+
+
+@router.get("/attendance/{empid}")
+async def get_attendance_summary(
+    empid: str,
+    start_date: date = Query(...),
+    end_date: date = Query(...)
+):
+    employee = await Employee.get_or_none(empid=empid)
+    if not employee:
+        return {"error": "Employee not found"}
+
+    result = []
+    today = date.today()
+
+    current = start_date
+    while current <= end_date:
+        next_day = current + timedelta(days=1)
+        logs = await TimeLog.filter(
+            employee=employee,
+            timestamp__gte=datetime.combine(current, datetime.min.time()),
+            timestamp__lt=datetime.combine(next_day, datetime.min.time())
+        ).order_by("timestamp")
+
+        entry_time = None
+        exit_time = None
+        in_time = 0
+        corrupted = False
+        inside = False
+        last_in = None
+        in_out_pairs = []
+
+        for log in logs:
+            if log.action == "IN":
+                if inside:
+                    corrupted = True  # Two consecutive INs
+                else:
+                    last_in = log.timestamp
+                    inside = True
+                    if not entry_time:
+                        entry_time = log.timestamp
+            elif log.action == "OUT":
+                if inside and last_in:
+                    delta = (log.timestamp - last_in).total_seconds()
+                    in_time += delta
+                    in_out_pairs.append((last_in, log.timestamp))
+                    exit_time = log.timestamp
+                    inside = False
+                    last_in = None
+                else:
+                    corrupted = True  # OUT without prior IN
+
+        # Handle unmatched IN (still inside)
+        if inside:
+            if current == today:
+                corrupted = False  # Allow it for today
+                exit_time = None  # Don't set lastExit if still inside
+            else:
+                corrupted = True
+
+        total_span = 0
+        total_out_time = 0
+        if entry_time and exit_time and entry_time < exit_time:
+            total_span = (exit_time - entry_time).total_seconds()
+            total_out_time = total_span - in_time
+
+        result.append({
+            "date": current.strftime("%Y-%m-%d"),
+            "firstEntry": entry_time.strftime("%I:%M %p") if entry_time else "-",
+            "lastExit": exit_time.strftime("%I:%M %p") if exit_time else "-",  # will be "-" if still inside today
+            "totalInTime": format_duration(int(in_time)) if entry_time and exit_time else "-",
+            "totalOutTime": format_duration(int(total_out_time)) if entry_time and exit_time else "-",
+            "status": "Present" if entry_time and not corrupted else ("Absent" if not entry_time else "Corrupted")
+        })
+
+        current += timedelta(days=1)
+
+    return result
+
+
+@router.get("/summary/{target_date}")
+async def get_attendance_summary_by_date(target_date: str ):
+    # Get all employees
+    try:
+        target_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+    all_employees = await Employee.all()
+    total_employees = len(all_employees)
+
+    present = []
+    absent = []
+
+    for employee in all_employees:
+        # Time range for that day
+        start_dt = datetime.combine(target_date, datetime.min.time())
+        end_dt = datetime.combine(target_date + timedelta(days=1), datetime.min.time())
+
+        # Check if employee has at least one "IN" log
+        log = await TimeLog.filter(
+            employee=employee,
+            action="IN",
+            timestamp__gte=start_dt,
+            timestamp__lt=end_dt
+        ).first()
+
+        if log:
+            present.append({"empid": employee.empid, "name": employee.name})
+        else:
+            absent.append({"empid": employee.empid, "name": employee.name})
+
+    return {
+        "date": target_date.strftime("%Y-%m-%d"),
+        "totalEmployees": total_employees,
+        "totalPresent": len(present),
+        "totalAbsent": len(absent),
+        "presentEmployees": present,
+        "absentEmployees": absent
+    }
+
 

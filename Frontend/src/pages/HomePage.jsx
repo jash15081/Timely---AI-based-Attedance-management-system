@@ -8,6 +8,8 @@ import Admins from '../components/Admins';
 import Employees from '../components/Employees';
 import AddEmployee from '../components/AddEmployee';
 import EditEmployee from '../components/EditEmployee';
+import ModelManager from '../components/ModelManager';
+import EmployeeDetails from '../components/EmployeeDetails';
 
 function HomePage() {
   const dispatch = useDispatch();
@@ -16,7 +18,7 @@ function HomePage() {
   return (
     <div className='flex min-h-[91vh] bg-gray-100'>
       {/* Sidebar */}
-      <div class='w-64 relative'>
+      <div className='w-64 relative'>
         <aside className='w-64 bg-emerald-800 text-white flex flex-col justify-between shadow-xl rounded-2xl h-[93vh] fixed'>
           <div>
             <div className='p-6 text-2xl font-bold bg-emerald-900 border-b border-emerald-700 rounded-2xl'>
@@ -48,6 +50,18 @@ function HomePage() {
               >
                 👥 Employees
               </NavLink>
+              <NavLink
+                  to='/manage-model'
+                  className={({ isActive }) =>
+                    `px-4 py-2 flex items-start rounded-lg font-medium transition duration-200 ${
+                      isActive
+                        ? 'bg-white text-emerald-800 shadow'
+                        : 'hover:bg-emerald-700 hover:text-white text-emerald-100'
+                    }`
+                  }
+                >
+                🛠️  Model Manager
+                </NavLink>
               {isSuperuser && (
                 <NavLink
                   to='/configure'
@@ -103,6 +117,8 @@ function HomePage() {
           <Route path='/employees' element={<Employees />} />
           <Route path='/add-employee' element={<AddEmployee />} />
           <Route path='/edit-employee/:id' element={<EditEmployee />} />
+          <Route path='/manage-model' element={<ModelManager/>}/>
+          <Route path='/employee-details/:id' element={<EmployeeDetails/>}/>
         </Routes>
       </main>
     </div>

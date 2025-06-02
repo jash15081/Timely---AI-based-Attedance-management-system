@@ -37,7 +37,7 @@ export const addEmployeePhoto = createAsyncThunk(
       return res.data.photo_url;
       // Expected to include updated list of photo URLs or photo info
     } catch (err) {
-      return thunkAPI.rejectWithValue(err.response?.data || err.message);
+      return thunkAPI.rejectWithValue(err.response?.data?.detail || err.message);
     }
   }
 );
