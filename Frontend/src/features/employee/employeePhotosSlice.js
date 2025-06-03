@@ -77,7 +77,13 @@ const employeePhotosSlice = createSlice({
     loading: false,
     error: null,
   },
-  reducers: {},
+  reducers: {
+     reset: (state) => {
+      state.photos = null;
+      state.loading = false;
+      state.error = null;
+    },
+  },
   extraReducers: (builder) => {
     builder
       // FETCH

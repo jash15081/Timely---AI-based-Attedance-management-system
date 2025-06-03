@@ -22,6 +22,23 @@ export const fetchAttendance = createAsyncThunk(
   }
 );
 
+export const fetchUserAttendance = createAsyncThunk(
+  'employeeAttendance/fetch',
+  async ({ start_date, end_date }, thunkAPI) => {
+    try {
+      const response = await axios.get(
+        `${API_URL}/user-attendance?start_date=${start_date}&end_date=${end_date}`,
+        { withCredentials: true }
+      );
+      console.log(response.data)
+      return response.data;
+    } catch (error) {
+      const message =
+        error?.response?.data?.detail || error?.message || 'Failed to fetch attendance';
+      return thunkAPI.rejectWithValue(message);
+    }
+  }
+);
 const employeeAttendanceSlice = createSlice({
   name: 'employeeAttendance',
   initialState: {

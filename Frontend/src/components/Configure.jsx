@@ -12,7 +12,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 function Configure() {
   const dispatch = useDispatch();
-  const isSuperuser = useSelector((state) => state.auth.superuser);
+  const role = useSelector((state) => state.auth.role);
   const { entranceUrl, exitUrl, loading, message, fetching } = useSelector(
     (state) => state.configure
   );
@@ -31,7 +31,7 @@ function Configure() {
     dispatch(saveConfiguration({ entranceUrl, exitUrl }));
   };
 
-  if (!isSuperuser) {
+  if (role!='superuser') {
     return (
       <div className='p-8 text-center text-red-600'>
         <h1 className='text-3xl font-bold'>Access Denied</h1>

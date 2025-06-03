@@ -1,4 +1,3 @@
-// src/components/AddEmployee.jsx
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -11,7 +10,7 @@ function AddEmployee() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const { creating, error } = useSelector((state) => state.manageEmployee);
+  const { creating, error, employee } = useSelector((state) => state.manageEmployee);
 
   const [employeeId, setEmployeeId] = useState('');
   const [name, setName] = useState('');
@@ -19,6 +18,7 @@ function AddEmployee() {
   const [photo, setPhoto] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [formError, setFormError] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
@@ -39,13 +39,18 @@ function AddEmployee() {
     setFormError('');
     dispatch(createEmployee({ name, email, employeeId, photo }))
       .unwrap()
-      .then(() => {
-        dispatch(clearManageEmployeeState());
-        navigate('/employees');
+      .then((response) => {
+        setShowPasswordModal(true);
       })
       .catch((err) => {
         console.error('Create failed:', err);
       });
+  };
+
+  const handleModalClose = () => {
+    setShowPasswordModal(false);
+    dispatch(clearManageEmployeeState());
+    navigate('/employees');
   };
 
   return (
@@ -104,6 +109,32 @@ function AddEmployee() {
           {creating ? 'Saving...' : 'Create Employee'}
         </button>
       </form>
+
+      {/* Password Modal */}
+      {showPasswordModal && employee?.password && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full">
+            <h3 className="text-xl font-bold text-emerald-700 mb-4">Employee Created Successfully!</h3>
+            <div className="mb-4">
+              <p className="mb-2">Please note the auto-generated password for this employee:</p>
+              <div className="bg-gray-100 p-3 rounded-md">
+                <p className="font-mono text-lg text-center">{employee.password}</p>
+              </div>
+              <p className="mt-2 text-sm text-red-600">
+                This password cannot be retrieved later. Please make sure to note it down.
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={handleModalClose}
+                className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700"
+              >
+                I've Noted the Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,16 +10,12 @@ import {
   Navigate,
 } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { getme, loginUser } from './features/auth/authSlice';
+import { getme } from './features/auth/authSlice';
 import { useEffect } from 'react';
 import HomePage from './pages/HomePage';
 import { PulseLoader } from 'react-spinners';
 function App() {
-  const [count, setCount] = useState(0);
-  const user = useSelector((state) => state.auth.user);
-  const isUserLoading = useSelector((state) => state.auth.isUserLoading);
-  const isError = useSelector((state) => state.auth.isError);
-  const message = useSelector((state) => state.auth.message);
+  const {isAuthenticated,loading} = useSelector((state)=>state.auth)
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -28,7 +24,7 @@ function App() {
 
   return (
     <>
-      {isUserLoading ? (
+      {loading ? (
         <div className='flex items-center justify-center min-h-screen'>
           <PulseLoader
             color='#36d7b7'
@@ -40,7 +36,7 @@ function App() {
       ) : (
         <Router>
           <Routes>
-            <Route path='/*' element={user ? <HomePage /> : <LoginPage />} />
+            <Route path='/*' element={isAuthenticated ? <HomePage /> : <LoginPage />} />
           </Routes>
         </Router>
       )}

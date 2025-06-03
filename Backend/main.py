@@ -1,4 +1,4 @@
-from fastapi import FastAPI,Depends, HTTPException,Response,Request,UploadFile, File
+from fastapi import FastAPI,Depends, HTTPException,Response,Request,UploadFile, File,Form,Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -13,14 +13,15 @@ from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from routes.employee_routes import router as employee_router
-from utils import authenticate_user, generate_frames
+from utils import authenticate_user, generate_frames,authenticate_employee,convert_to_local,format_duration
 from fastapi.middleware.cors import CORSMiddleware
-from utils import is_valid_rtsp_url,is_rtsp_stream_accessible
+from utils import is_valid_rtsp_url,is_rtsp_stream_accessible,verify_password,create_token
 import urllib.parse
 from fastapi.responses import StreamingResponse
 import time
 from tortoise import Tortoise
 from routes.model_routes import router as model_router
+from datetime import date
 dotenv.load_dotenv()
 CORS_ORIGIN = os.getenv("CORS_ORIGIN")
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -53,13 +54,6 @@ app.add_middleware(
 app.include_router(employee_router)
 app.include_router(model_router)
 
-def verify_password(plain_password, hashed):
-    return pwd_context.verify(plain_password, hashed)
-
-def create_token(data: dict):
-    to_encode = data.copy()
-    to_encode["exp"] = datetime.now(timezone.utc) + timedelta(int(EXPIRE_TIME))
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 @app.get("/admin")
 async def get_admins(username = Depends(authenticate_user)):
@@ -97,9 +91,9 @@ async def delete_admin(admin_id: int,username = Depends(authenticate_user)):
     return {"message": "Admin deleted successfully"}
 
 @app.post("/login")
-async def login(response:Response,form_data: OAuth2PasswordRequestForm = Depends()):
-    admin = await Admin.get_or_none(username=form_data.username)
-    if not admin or not verify_password(form_data.password, admin.password):
+async def login(response:Response,username:str = Form(...),password:str = Form(...)):
+    admin = await Admin.get_or_none(username=username)
+    if not admin or not verify_password(password, admin.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_token({"sub": admin.username})
     response.set_cookie(
@@ -117,18 +111,53 @@ async def logout(response: Response):
     response.delete_cookie("access_token")
     return {"message": "Logout successful"}
 
-@app.get("/getme")
-async def get_me(username = Depends(authenticate_user)):
-    time.sleep(1)  # Simulate a delay for demonstration purposes
-    if username == "superuser":
-        return {"username": username, "role": "superuser"}
-    else:
-        admin = await Admin.get_or_none(username=username)
-        if not admin:
-            raise HTTPException(status_code=404, detail="Admin not found")
-        return {"username": admin.username, "role": "admin"}
 
-import re
+@app.post("/admin/change-password")
+async def change_password(
+    username:str = Form(...),
+    old_password: str = Form(...),
+    new_password: str = Form(...),
+    
+):
+    # Fetch the employee
+    
+    admin = await Admin.get_or_none(username=username)
+    print(admin)
+    if not admin:
+        raise HTTPException(status_code=404, detail="Admin not found")
+
+    # Verify old password
+    if not pwd_context.verify(old_password, admin.password):
+        raise HTTPException(status_code=401, detail="Incorrect old password")
+
+    # Prevent using the same password again
+    if pwd_context.verify(new_password, admin.password):
+        raise HTTPException(status_code=400, detail="New password must be different from the old password")
+
+    # Hash and update the password
+    admin.password = pwd_context.hash(new_password)
+    await admin.save()
+
+    return {"message": "Password changed successfully"}
+
+
+
+@app.get("/getme")
+async def authenticate_any_user(request: Request):
+    try:
+        username = await authenticate_user(request)
+        return {"type": "admin", "username": username}
+    except HTTPException:
+        pass  # Try the next one
+
+    try:
+        empid = await authenticate_employee(request)
+        return {"type": "employee", "empid": empid}
+    except HTTPException:
+        pass
+
+    raise HTTPException(status_code=401, detail="Authentication failed")
+
 
 @app.get("/configure")
 async def get_config(username = Depends(authenticate_user)):
@@ -188,3 +217,84 @@ async def stream_camera(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+
+@app.get("/user-attendance")
+async def get_user_attendance_summary(
+    empid='SDNA001',
+    start_date: date = Query(...),
+    end_date: date = Query(...)
+):  
+    print(empid)
+    employee = await Employee.get_or_none(empid=empid)
+    if not employee:
+        return {"error": "Employee not found"}
+
+    result = []
+    today = date.today()
+
+    current = start_date
+    while current <= end_date:
+        next_day = current + timedelta(days=1)
+        logs = await TimeLog.filter(
+            employee=employee,
+            timestamp__gte=datetime.combine(current, datetime.min.time()),
+            timestamp__lt=datetime.combine(next_day, datetime.min.time())
+        ).order_by("timestamp")
+
+        entry_time = None
+        exit_time = None
+        in_time = 0
+        corrupted = False
+        inside = False
+        last_in = None
+        in_out_pairs = []
+
+        for log in logs:
+            if log.action == "IN":
+                if inside:
+                    corrupted = True  # Two consecutive INs
+                else:
+                    last_in = log.timestamp
+                    inside = True
+                    if not entry_time:
+                        entry_time = log.timestamp
+            elif log.action == "OUT":
+                if inside and last_in:
+                    delta = (log.timestamp - last_in).total_seconds()
+                    in_time += delta
+                    in_out_pairs.append((last_in, log.timestamp))
+                    exit_time = log.timestamp
+                    inside = False
+                    last_in = None
+                else:
+                    corrupted = True  # OUT without prior IN
+
+        # Handle unmatched IN (still inside)
+        if inside:
+            if current == today:
+                corrupted = False  # Allow it for today
+                exit_time = None  # Don't set lastExit if still inside
+            else:
+                corrupted = True
+
+        total_span = 0
+        total_out_time = 0
+        if entry_time and exit_time and entry_time < exit_time:
+            total_span = (exit_time - entry_time).total_seconds()
+            total_out_time = total_span - in_time
+         # Python 3.9+
+# Or use `pytz` if you're on Python < 3.9
+
+        
+        result.append({
+            "date": current.strftime("%Y-%m-%d"),
+            "firstEntry": convert_to_local(entry_time).strftime("%I:%M %p") if entry_time else "-",
+            "lastExit": convert_to_local(exit_time).strftime("%I:%M %p") if exit_time else "-",  # will be "-" if still inside today
+            "totalInTime": format_duration(int(in_time)) if entry_time and exit_time else "-",
+            "totalOutTime": format_duration(int(total_out_time)) if entry_time and exit_time else "-",
+            "status": "Present" if entry_time and not corrupted else ("Absent" if not entry_time else "Corrupted")
+        })
+
+        current += timedelta(days=1)
+
+    return result

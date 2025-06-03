@@ -20,7 +20,7 @@ function Employees() {
       <div className='flex justify-between items-center mb-8'>
         <h1 className='text-3xl font-bold text-emerald-800'>Employees</h1>
         <button
-          onClick={() => navigate('/add-employee')}
+          onClick={() => navigate('/employees/add-employee')}
           className='bg-emerald-600 text-white px-5 py-2 rounded-lg shadow hover:bg-green-700 text-sm transition duration-200'
         >
           + Add
@@ -65,13 +65,13 @@ function Employees() {
             <div className='flex items-center space-x-3'>
               <button
                 className='px-4 py-1.5 text-sm font-semibold text-emerald-700 border border-emerald-500 rounded-lg hover:bg-green-100 transition duration-200'
-                onClick={() => navigate(`/employee-details/${employee.empid}`)}
+                onClick={() => navigate(`/employees/employee-details/${employee.empid}`)}
               >
                 Details
               </button>
               <button
                 className='px-4 py-1.5 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition duration-200'
-                onClick={() => navigate(`/edit-employee/${employee.empid}`)}
+                onClick={() => navigate(`/employees/edit-employee/${employee.empid}`)}
               >
                 Edit
               </button>

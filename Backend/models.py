@@ -9,6 +9,7 @@ class Admin(Model):
 class Employee(Model):
     id = fields.IntField(pk=True)
     empid = fields.CharField(max_length=50,unique=True)
+    password = fields.CharField(max_length=100)
     name = fields.CharField(max_length=50)
     email = fields.CharField(max_length=100,unique=True)
     logs: fields.ReverseRelation["TimeLog"]

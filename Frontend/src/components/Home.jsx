@@ -154,14 +154,14 @@ const EmployeeList = ({ title, count, employees, icon, bgHeader, borderHeader, b
               <div className="text-right">
                 {type === "present" ? (
                   <button
-                    onClick={() => navigate(`/employee-details/${employee.empid}`)}
+                    onClick={() => navigate(`employees/employee-details/${employee.empid}`)}
                     className="px-4 py-1 text-sm font-medium text-emerald-600 border border-emerald-600 bg-white rounded-lg hover:bg-emerald-600 hover:text-white transition"
                   >
                     See
                 </button>
                 ) : (
                  <button
-                    onClick={() => navigate(`/employee-details/${employee.empid}`)}
+                    onClick={() => navigate(`employees/employee-details/${employee.empid}`)}
                     className="px-4 py-1 text-sm font-medium text-emerald-600 border border-emerald-600 bg-white rounded-lg hover:bg-emerald-600 hover:text-white transition"
                   >
                     See

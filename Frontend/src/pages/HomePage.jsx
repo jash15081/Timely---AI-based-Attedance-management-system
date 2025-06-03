@@ -10,10 +10,11 @@ import AddEmployee from '../components/AddEmployee';
 import EditEmployee from '../components/EditEmployee';
 import ModelManager from '../components/ModelManager';
 import EmployeeDetails from '../components/EmployeeDetails';
+import EmployeePage from '../components/EmployeePage';
 
 function HomePage() {
   const dispatch = useDispatch();
-  const isSuperuser = useSelector((state) => state.auth.superuser);
+  const role = useSelector((state) => state.auth.role);
 
   return (
     <div className='flex min-h-[91vh] bg-gray-100'>
@@ -25,7 +26,7 @@ function HomePage() {
               Timely Admin
             </div>
             <nav className='flex flex-col p-4 space-y-2'>
-              <NavLink
+              {(role=='admin'||role=='superuser')&&<NavLink
                 to='/'
                 end
                 className={({ isActive }) =>
@@ -37,8 +38,8 @@ function HomePage() {
                 }
               >
                 🏠 Home
-              </NavLink>
-              <NavLink
+              </NavLink>}
+              {(role=='admin'||role=='superuser')&&<NavLink
                 to='/employees'
                 className={({ isActive }) =>
                   `px-4 py-2 flex items-start flex items-start rounded-lg font-medium transition duration-200 ${
@@ -49,8 +50,20 @@ function HomePage() {
                 }
               >
                 👥 Employees
-              </NavLink>
-              <NavLink
+              </NavLink>}
+              {(role=='employee')&&<NavLink
+                to='/employeePage'
+                className={({ isActive }) =>
+                  `px-4 py-2 flex items-start flex items-start rounded-lg font-medium transition duration-200 ${
+                    isActive
+                      ? 'bg-white text-emerald-800 shadow'
+                      : 'hover:bg-emerald-700 hover:text-white text-emerald-100'
+                  }`
+                }
+              >
+                👥 My Attendance
+              </NavLink>}
+              {(role=='admin'||role=='superuser')&&<NavLink
                   to='/manage-model'
                   className={({ isActive }) =>
                     `px-4 py-2 flex items-start rounded-lg font-medium transition duration-200 ${
@@ -61,8 +74,8 @@ function HomePage() {
                   }
                 >
                 🛠️  Model Manager
-                </NavLink>
-              {isSuperuser && (
+                </NavLink>}
+              {role=='superuser' && (
                 <NavLink
                   to='/configure'
                   className={({ isActive }) =>
@@ -76,7 +89,7 @@ function HomePage() {
                   ⚙️ Configure
                 </NavLink>
               )}
-              {isSuperuser && (
+              {role=='superuser' && (
                 <NavLink
                   to='/admins'
                   className={({ isActive }) =>
@@ -100,7 +113,7 @@ function HomePage() {
             >
               Logout
             </button>
-            {isSuperuser && (
+            {role=='superuser' && (
               <p className='text-xs text-emerald-200 mt-2'>
                 Superuser Access Enabled
               </p>
@@ -115,10 +128,11 @@ function HomePage() {
           <Route path='/configure' element={<Configure />} />
           <Route path='/admins' element={<Admins />} />
           <Route path='/employees' element={<Employees />} />
-          <Route path='/add-employee' element={<AddEmployee />} />
-          <Route path='/edit-employee/:id' element={<EditEmployee />} />
+          <Route path='/employees/add-employee' element={<AddEmployee />} />
+          <Route path='/employees/edit-employee/:id' element={<EditEmployee />} />
           <Route path='/manage-model' element={<ModelManager/>}/>
-          <Route path='/employee-details/:id' element={<EmployeeDetails/>}/>
+          <Route path='/employees/employee-details/:id' element={<EmployeeDetails/>}/>
+          <Route path='/employeePage' element ={<EmployeePage/>}/>
         </Routes>
       </main>
     </div>

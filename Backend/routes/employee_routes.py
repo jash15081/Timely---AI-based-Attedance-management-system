@@ -1,8 +1,8 @@
 # routers/employee.py
-from fastapi import APIRouter, Depends, HTTPException,UploadFile,File,Form,Request,Query
+from fastapi import APIRouter, Depends, HTTPException,UploadFile,File,Form,Request,Query,Response
 from models import Employee,TimeLog 
 from pydantic_models import EmployeeIn
-from utils import authenticate_user
+from utils import authenticate_user,verify_password,create_token,authenticate_employee
 import shutil
 import dotenv
 import os
@@ -11,10 +11,22 @@ from fastapi.responses import JSONResponse
 from tortoise.exceptions import DoesNotExist
 from datetime import datetime, timedelta, date
 from tortoise.expressions import Q
+from zoneinfo import ZoneInfo 
+import random
+import string
+from passlib.context import CryptContext
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+
 dotenv.load_dotenv()
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER")
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/jpg", "image/webp"}
 
+
+LOCAL_TIMEZONE = ZoneInfo("Asia/Kolkata")  # replace with yours
+
+def convert_to_local(dt):
+     # treat naive as UTC
+    return dt.astimezone(LOCAL_TIMEZONE)
 router = APIRouter(
     prefix="/employee",
     tags=["Employees"]
@@ -75,6 +87,7 @@ async def get_employees(request: Request, username=Depends(authenticate_user)):
         enriched_employees.append(emp)
 
     return {"employees": enriched_employees}
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @router.post("/")
 async def create_employee(name:str=Form(...), email:str=Form(...),file:UploadFile=File(...),empid:str=Form(...),username = Depends(authenticate_user)):
@@ -86,7 +99,10 @@ async def create_employee(name:str=Form(...), email:str=Form(...),file:UploadFil
     exiting_employee = await Employee.get_or_none(email=email)
     if exiting_employee:
         raise HTTPException(status_code=400, detail="Employee with this email already exists")
-    employee_obj = await Employee.create(name=name, email=email,empid=empid)
+    
+    password = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+    hashed_password = pwd_context.hash(password)
+    employee_obj = await Employee.create(name=name, email=email,empid=empid,password=hashed_password)
     if not employee_obj:
         raise HTTPException(status_code=400, detail="Employee creation failed")
     emp_dir = os.path.join(UPLOAD_FOLDER, str(employee_obj.empid))
@@ -101,10 +117,10 @@ async def create_employee(name:str=Form(...), email:str=Form(...),file:UploadFil
     file_path = os.path.join(emp_dir, unique_filename)
     with open(file_path, "wb") as f:
         f.write(await file.read())
-    return {"created"}
+    return {"password":password,"empid":empid,"email":email}
 
 @router.delete("/{id}")
-async def delete_employee(id:int,username = Depends(authenticate_user)):
+async def delete_employee(id:str,username = Depends(authenticate_user)):
     
     employee_obj = await Employee.get_or_none(empid=id)
     if not employee_obj:
@@ -114,6 +130,8 @@ async def delete_employee(id:int,username = Depends(authenticate_user)):
     if os.path.exists(emp_dir):
         shutil.rmtree(emp_dir)
     return {"deleted"}
+from typing import Optional
+from fastapi import Form
 
 @router.put("/{id}")
 async def update_employee(
@@ -121,6 +139,7 @@ async def update_employee(
     empid: str = Form(...),
     name: str = Form(...),
     email: str = Form(...),
+    password: Optional[str] = Form(None),  # ✅ Make password optional
     username = Depends(authenticate_user)
 ):
     employee_obj = await Employee.get_or_none(empid=id)
@@ -135,7 +154,7 @@ async def update_employee(
     if existing_employee and existing_employee.empid != id:
         raise HTTPException(status_code=400, detail="Employee with this ID already exists")
 
-    # If empid is changing, rename the photo directory
+    # Rename photo directory if empid changed
     old_empid = employee_obj.empid
     if empid != old_empid:
         old_dir = os.path.join(UPLOAD_FOLDER, str(old_empid))
@@ -143,10 +162,15 @@ async def update_employee(
         if os.path.exists(old_dir):
             os.rename(old_dir, new_dir)
 
-    # Update employee object
+    # Update fields
     employee_obj.name = name
     employee_obj.email = email
     employee_obj.empid = empid
+
+    # ✅ Update password only if not empty/None
+    if password:
+        employee_obj.password = pwd_context.hash(password)
+
     await employee_obj.save()
 
     return {"emp": {"empid": employee_obj.empid, "name": employee_obj.name, "email": employee_obj.email}}
@@ -334,11 +358,14 @@ async def get_attendance_summary(
         if entry_time and exit_time and entry_time < exit_time:
             total_span = (exit_time - entry_time).total_seconds()
             total_out_time = total_span - in_time
+         # Python 3.9+
+# Or use `pytz` if you're on Python < 3.9
 
+        
         result.append({
             "date": current.strftime("%Y-%m-%d"),
-            "firstEntry": entry_time.strftime("%I:%M %p") if entry_time else "-",
-            "lastExit": exit_time.strftime("%I:%M %p") if exit_time else "-",  # will be "-" if still inside today
+            "firstEntry": convert_to_local(entry_time).strftime("%I:%M %p") if entry_time else "-",
+            "lastExit": convert_to_local(exit_time).strftime("%I:%M %p") if exit_time else "-",  # will be "-" if still inside today
             "totalInTime": format_duration(int(in_time)) if entry_time and exit_time else "-",
             "totalOutTime": format_duration(int(total_out_time)) if entry_time and exit_time else "-",
             "status": "Present" if entry_time and not corrupted else ("Absent" if not entry_time else "Corrupted")
@@ -391,3 +418,52 @@ async def get_attendance_summary_by_date(target_date: str ):
     }
 
 
+@router.post("/login")
+async def login(response:Response,empid:str=Form(...),password:str=Form(...)):
+    employee = await Employee.get_or_none(
+        Q(empid=empid) | Q(email=empid)
+    )
+    if not employee or not verify_password(password, employee.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_token({"empid": employee.empid})
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=False,  
+        samesite="lax",
+        max_age=3600  
+    )
+    return {"empid": employee.empid,"name":employee.name}
+
+@router.post("/change-password")
+async def change_password(
+    request: Request,
+    old_password: str = Form(...),
+    new_password: str = Form(...),
+    empid:str = Form(...)
+):
+    # Fetch the employee
+    employee = await Employee.get_or_none(empid=empid)
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # Verify old password
+    if not pwd_context.verify(old_password, employee.password):
+        raise HTTPException(status_code=401, detail="Incorrect old password")
+
+    # Prevent using the same password again
+    if pwd_context.verify(new_password, employee.password):
+        raise HTTPException(status_code=400, detail="New password must be different from the old password")
+
+    # Hash and update the password
+    employee.password = pwd_context.hash(new_password)
+    await employee.save()
+
+    return {"message": "Password changed successfully"}
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    response.delete_cookie("access_token")
+    return {"message": "Logout successful"}
