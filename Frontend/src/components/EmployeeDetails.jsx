@@ -128,7 +128,7 @@ const averageInTime = Number.isNaN(avgHours)
           </div>
           <p className="text-gray-600 text-start ml-14">  {fetching?null:employee?.empid}</p>
         </div>
-
+      
         {/* Controls */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">

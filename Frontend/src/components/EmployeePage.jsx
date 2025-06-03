@@ -7,6 +7,7 @@ import { fetchUserAttendance } from "../features/employee/employeeAttandanceSlic
 import { useParams } from "react-router-dom"
 import { parseISO, format } from 'date-fns'
 import { PulseLoader } from "react-spinners"
+import { logoutUser } from "../features/auth/authSlice"
 export default function EmployeePage() {
   const [selectedPeriod, setSelectedPeriod] = useState("thisWeek")
   const [customStartDate, setCustomStartDate] = useState("")
@@ -120,6 +121,13 @@ const averageInTime = Number.isNaN(avgHours)
               <Users className="w-6 h-6 text-emerald-600" />
             </div>
           <h1 className="text-3xl font-bold text-gray-900">{user?.name}</h1>
+          <button
+            onClick={()=>{dispatch(logoutUser())}}
+            className="bg-red-500 ml-auto hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-2xl shadow-md transition duration-200"
+            >
+            Logout
+         </button>
+
           </div>
           <p className="text-gray-600 text-start ml-14">  {user?.empid}</p>
         </div>

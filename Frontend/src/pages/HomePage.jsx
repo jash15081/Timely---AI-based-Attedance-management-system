@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { logoutUser } from '../features/auth/authSlice';
-import { Routes, Route, NavLink } from 'react-router-dom';
+import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import Home from '../components/Home';
 import Configure from '../components/Configure';
 import Admins from '../components/Admins';
@@ -15,7 +15,8 @@ import EmployeePage from '../components/EmployeePage';
 function HomePage() {
   const dispatch = useDispatch();
   const role = useSelector((state) => state.auth.role);
-
+  const navigate = useNavigate()
+  useEffect(()=>{navigate("/")},[])
   return (
     <div className='flex min-h-[91vh] bg-gray-100'>
       {/* Sidebar */}
@@ -51,18 +52,7 @@ function HomePage() {
               >
                 👥 Employees
               </NavLink>}
-              {(role=='employee')&&<NavLink
-                to='/employeePage'
-                className={({ isActive }) =>
-                  `px-4 py-2 flex items-start flex items-start rounded-lg font-medium transition duration-200 ${
-                    isActive
-                      ? 'bg-white text-emerald-800 shadow'
-                      : 'hover:bg-emerald-700 hover:text-white text-emerald-100'
-                  }`
-                }
-              >
-                👥 My Attendance
-              </NavLink>}
+              
               {(role=='admin'||role=='superuser')&&<NavLink
                   to='/manage-model'
                   className={({ isActive }) =>
@@ -132,7 +122,6 @@ function HomePage() {
           <Route path='/employees/edit-employee/:id' element={<EditEmployee />} />
           <Route path='/manage-model' element={<ModelManager/>}/>
           <Route path='/employees/employee-details/:id' element={<EmployeeDetails/>}/>
-          <Route path='/employeePage' element ={<EmployeePage/>}/>
         </Routes>
       </main>
     </div>

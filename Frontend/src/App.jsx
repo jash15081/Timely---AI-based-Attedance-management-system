@@ -14,8 +14,9 @@ import { getme } from './features/auth/authSlice';
 import { useEffect } from 'react';
 import HomePage from './pages/HomePage';
 import { PulseLoader } from 'react-spinners';
+import EmployeePage from './components/EmployeePage';
 function App() {
-  const {isAuthenticated,loading} = useSelector((state)=>state.auth)
+  const {isAuthenticated,loading,role} = useSelector((state)=>state.auth)
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -36,7 +37,7 @@ function App() {
       ) : (
         <Router>
           <Routes>
-            <Route path='/*' element={isAuthenticated ? <HomePage /> : <LoginPage />} />
+            <Route path='/*' element={isAuthenticated ? (role=='employee'?<EmployeePage />:<HomePage/>) : <LoginPage />} />
           </Routes>
         </Router>
       )}

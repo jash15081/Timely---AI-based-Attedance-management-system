@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from 'axios';
 import { ArchiveIcon } from "lucide-react";
 import { act } from "react";
+import { useNavigate } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL; // replace with your actual base URL
 
@@ -16,7 +17,6 @@ const initialState = {
   resetPasswordSuccess: false,
   resetPasswordError: null,
 };
-
 export const logoutUser = createAsyncThunk(
   'auth/logout',
   async (_, { rejectWithValue }) => {
